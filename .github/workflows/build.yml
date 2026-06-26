@@ -1,4 +1,4 @@
-name: Build alsa_bridge.ko + bundle pre-built kernel
+name: Build alsa_bridge.ko + kernel Image (single source)
 
 on:
   workflow_dispatch:
@@ -19,13 +19,19 @@ jobs:
           git clone --depth=1 -b rpi-6.6.y \
             https://github.com/raspberrypi/linux.git /tmp/linux
 
-      - name: Prepare kernel headers
+      - name: Build kernel + alsa_bridge (same source)
         working-directory: /tmp/linux
         run: |
+          # Configure
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- bcm2711_defconfig
+
+          # Record kernel version BEFORE full build
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
           KVER=$(grep UTS_RELEASE include/generated/utsrelease.h | awk -F'"' '{print $2}')
           echo "KERNEL_VERSION=$KVER" >> $GITHUB_ENV
+
+          # Full kernel Image compile
+          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image.gz modules
 
       - name: Build alsa_bridge.ko
         run: |
@@ -34,31 +40,11 @@ jobs:
             M=${{ github.workspace }}/DirettaAlsaHost \
             KBUILD_MODPOST_WARN=1 modules
 
-      - name: Download pre-built kernel
-        run: |
-          for url in \
-            "http://archive.raspberrypi.com/debian/pool/main/l/linux/linux-image-6.6.20+rpt-rpi-v8_6.6.20-1+rpt1_arm64.deb" \
-            "http://archive.raspberrypi.com/debian/pool/main/l/linux/linux-image-6.6.28+rpt-rpi-v8_1:6.6.28-1+rpt1_arm64.deb" \
-            "http://archive.raspberrypi.com/debian/pool/main/l/linux/linux-image-6.6.47+rpt-rpi-v8_1:6.6.47-1+rpt1_arm64.deb"; do
-            wget -nv "$url" -O /tmp/kernel.deb 2>&1 && break
-          done
-          ls -lh /tmp/kernel.deb
-
-      - name: Extract kernel Image
-        run: |
-          cd /tmp
-          ar x kernel.deb
-          ls -la
-          mkdir -p /tmp/kernel-extract
-          tar xf data.tar.xz -C /tmp/kernel-extract
-          find /tmp/kernel-extract -name "vmlinuz-*" -type f
-          mkdir -p ${{ github.workspace }}/output
-          find /tmp/kernel-extract -name "vmlinuz-*" -type f -exec cp {} ${{ github.workspace }}/output/kernel8.img \;
-          ls -lh ${{ github.workspace }}/output/kernel8.img || echo "Kernel not found"
-
       - name: Package
         run: |
           mkdir -p output
+          # Use self-compiled kernel Image.gz (not a pre-built deb)
+          cp /tmp/linux/arch/arm64/boot/Image.gz output/kernel8.img
           cp DirettaAlsaHost/alsa_bridge.ko output/
           echo "Source version: ${{ env.KERNEL_VERSION }}" > output/version.txt
           ls -lh output/
