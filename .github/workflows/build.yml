@@ -38,7 +38,7 @@ jobs:
         run: |
           make -C /tmp/linux \
             ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
-            M=${{ github.workspace }}/DirettaAlsaHost/bridge \
+            M=${{ github.workspace }}/DirettaAlsaHost \
             KBUILD_MODPOST_WARN=1 modules
 
       - name: Install modules + Package
@@ -53,10 +53,10 @@ jobs:
             modules_install INSTALL_MOD_PATH=${{ github.workspace }}/output
           # alsa_bridge.ko into modules tree for depmod
           mkdir -p output/lib/modules/$KVER/kernel/drivers/alsa_bridge
-          cp ${{ github.workspace }}/DirettaAlsaHost/bridge/alsa_bridge.ko \
+          cp ${{ github.workspace }}/DirettaAlsaHost/alsa_bridge.ko \
              output/lib/modules/$KVER/kernel/drivers/alsa_bridge/
           # also standalone copy
-          cp ${{ github.workspace }}/DirettaAlsaHost/bridge/alsa_bridge.ko output/
+          cp ${{ github.workspace }}/DirettaAlsaHost/alsa_bridge.ko output/
           # regenerate dep
           depmod -b output -F /tmp/linux/System.map $KVER
           echo "Source version: $KVER" > output/version.txt
