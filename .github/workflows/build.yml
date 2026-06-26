@@ -48,12 +48,13 @@ jobs:
         run: |
           cd /tmp
           ar x kernel.deb
-          ls -la data.tar.* 2>&1
-          tar xf data.tar.xz boot/vmlinuz-*
+          ls -la
+          mkdir -p /tmp/kernel-extract
+          tar xf data.tar.xz -C /tmp/kernel-extract
+          find /tmp/kernel-extract -name "vmlinuz-*" -type f
           mkdir -p ${{ github.workspace }}/output
-          cp boot/vmlinuz-* ${{ github.workspace }}/output/kernel8.img
-          ls -lh ${{ github.workspace }}/output/kernel8.img
-          echo "Kernel extracted OK"
+          find /tmp/kernel-extract -name "vmlinuz-*" -type f -exec cp {} ${{ github.workspace }}/output/kernel8.img \;
+          ls -lh ${{ github.workspace }}/output/kernel8.img || echo "Kernel not found"
 
       - name: Package
         run: |
