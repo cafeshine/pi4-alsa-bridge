@@ -12,7 +12,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu bc flex bison libelf-dev
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu bc flex bison libelf-dev kmod
 
       - name: Download RPi kernel source
         run: |
@@ -40,12 +40,26 @@ jobs:
             M=${{ github.workspace }}/DirettaAlsaHost \
             KBUILD_MODPOST_WARN=1 modules
 
-      - name: Package
+      - name: Install modules + Package
         run: |
           mkdir -p output
-          # Use self-compiled kernel Image.gz (not a pre-built deb)
+
+          # 1. kernel Image
           cp /tmp/linux/arch/arm64/boot/Image.gz output/kernel8.img
+
+          # 2. Install ALL kernel modules (snd, snd-pcm, etc.)
+          make -C /tmp/linux \
+            ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+            modules_install INSTALL_MOD_PATH=${{ github.workspace }}/output
+
+          # 3. alsa_bridge.ko → standalone copy + into modules tree (for depmod)
           cp DirettaAlsaHost/alsa_bridge.ko output/
+          mkdir -p output/lib/modules/${{ env.KERNEL_VERSION }}/kernel/drivers/alsa_bridge
+          cp DirettaAlsaHost/alsa_bridge.ko output/lib/modules/${{ env.KERNEL_VERSION }}/kernel/drivers/alsa_bridge/
+
+          # 4. Regenerate module dependency index (so modprobe alsa_bridge auto-loads snd+snd-pcm)
+          depmod -b output -F /tmp/linux/System.map ${{ env.KERNEL_VERSION }}
+
           echo "Source version: ${{ env.KERNEL_VERSION }}" > output/version.txt
           ls -lh output/
 
