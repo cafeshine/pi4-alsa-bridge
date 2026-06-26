@@ -1,4 +1,4 @@
-name: Build alsa_bridge.ko for Pi 4B
+name: Build Pi 4B kernel + alsa_bridge.ko
 
 on:
   workflow_dispatch:
@@ -13,19 +13,25 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq gcc-aarch64-linux-gnu \
-            bc flex bison libelf-dev
+            bc flex bison libelf-dev lz4
 
       - name: Download RPi kernel source
         run: |
           git clone --depth=1 -b rpi-6.6.y \
             https://github.com/raspberrypi/linux.git /tmp/linux
 
-      - name: Configure kernel (bcm2711_defconfig)
+      - name: Configure kernel (Pi 4B 64-bit)
         working-directory: /tmp/linux
         run: |
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- bcm2711_defconfig
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
-          echo "Kernel: $(grep UTS_RELEASE include/generated/utsrelease.h)"
+          KVER=$(grep UTS_RELEASE include/generated/utsrelease.h | awk -F'"' '{print $2}')
+          echo "KERNEL_VERSION=$KVER" >> $GITHUB_ENV
+
+      - name: Build kernel Image + modules
+        working-directory: /tmp/linux
+        run: |
+          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image modules
+          echo "Kernel build done"
 
       - name: Build alsa_bridge.ko
         run: |
@@ -34,14 +40,18 @@ jobs:
             M=${{ github.workspace }}/DirettaAlsaHost \
             KBUILD_MODPOST_WARN=1 modules
 
-      - name: Verify
+      - name: Package artifacts
         run: |
-          KO=${{ github.workspace }}/DirettaAlsaHost/alsa_bridge.ko
-          ls -la "$KO"
-          modinfo "$KO" | grep -E "filename|vermagic|description"
+          mkdir -p output
+          cp /tmp/linux/arch/arm64/boot/Image output/kernel8.img
+          cp ${{ github.workspace }}/DirettaAlsaHost/alsa_bridge.ko output/
+          cp /tmp/linux/.config output/config-${{ env.KERNEL_VERSION }}
+          echo "=== Package contents ==="
+          ls -lh output/
+          echo "Kernel: ${{ env.KERNEL_VERSION }}"
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: alsa_bridge-pi4
-          path: DirettaAlsaHost/alsa_bridge.ko
+          name: pi4-kernel-bundle
+          path: output/
