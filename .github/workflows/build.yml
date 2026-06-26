@@ -1,4 +1,4 @@
-name: Build Pi 4B kernel + alsa_bridge.ko
+name: Build alsa_bridge.ko + bundle pre-built kernel
 
 on:
   workflow_dispatch:
@@ -12,26 +12,20 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu \
-            bc flex bison libelf-dev lz4
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu bc flex bison libelf-dev
 
       - name: Download RPi kernel source
         run: |
           git clone --depth=1 -b rpi-6.6.y \
             https://github.com/raspberrypi/linux.git /tmp/linux
 
-      - name: Configure kernel (Pi 4B 64-bit)
+      - name: Prepare kernel headers
         working-directory: /tmp/linux
         run: |
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- bcm2711_defconfig
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
           KVER=$(grep UTS_RELEASE include/generated/utsrelease.h | awk -F'"' '{print $2}')
           echo "KERNEL_VERSION=$KVER" >> $GITHUB_ENV
-
-      - name: Build kernel Image + modules
-        working-directory: /tmp/linux
-        run: |
-          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image modules
-          echo "Kernel build done"
 
       - name: Build alsa_bridge.ko
         run: |
@@ -40,18 +34,33 @@ jobs:
             M=${{ github.workspace }}/DirettaAlsaHost \
             KBUILD_MODPOST_WARN=1 modules
 
-      - name: Package artifacts
+      - name: Download pre-built RPi kernel
+        run: |
+          for url in \
+            "http://archive.raspberrypi.com/debian/pool/main/l/linux/linux-image-6.6.20+rpt-rpi-v8_6.6.20-1+rpt1_arm64.deb" \
+            "http://archive.raspberrypi.com/debian/pool/main/l/linux/linux-image-6.6.28+rpt-rpi-v8_1:6.6.28-1+rpt1_arm64.deb" \
+            "http://archive.raspberrypi.com/debian/pool/main/l/linux/linux-image-6.6.47+rpt-rpi-v8_1:6.6.47-1+rpt1_arm64.deb"; do
+            wget -q "$url" -O /tmp/kernel.deb && break
+          done
+          ls -lh /tmp/kernel.deb
+
+      - name: Extract kernel Image
+        run: |
+          cd /tmp
+          ar x kernel.deb
+          tar xf data.tar.* 2>/dev/null || tar xf data.tar.xz 2>/dev/null
+          find boot/ -name "vmlinuz-*" -exec cp {} ${{ github.workspace }}/output/kernel8.img \;
+          echo "kernel done"
+
+      - name: Package
         run: |
           mkdir -p output
-          cp /tmp/linux/arch/arm64/boot/Image output/kernel8.img
           cp ${{ github.workspace }}/DirettaAlsaHost/alsa_bridge.ko output/
-          cp /tmp/linux/.config output/config-${{ env.KERNEL_VERSION }}
-          echo "=== Package contents ==="
+          echo "Source version: ${{ env.KERNEL_VERSION }}" > output/version.txt
           ls -lh output/
-          echo "Kernel: ${{ env.KERNEL_VERSION }}"
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: pi4-kernel-bundle
+          name: pi4-bundle
           path: output/
