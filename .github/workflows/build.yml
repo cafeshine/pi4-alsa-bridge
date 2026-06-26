@@ -34,13 +34,13 @@ jobs:
             M=${{ github.workspace }}/DirettaAlsaHost \
             KBUILD_MODPOST_WARN=1 modules
 
-      - name: Download pre-built RPi kernel
+      - name: Download pre-built kernel
         run: |
           for url in \
             "http://archive.raspberrypi.com/debian/pool/main/l/linux/linux-image-6.6.20+rpt-rpi-v8_6.6.20-1+rpt1_arm64.deb" \
             "http://archive.raspberrypi.com/debian/pool/main/l/linux/linux-image-6.6.28+rpt-rpi-v8_1:6.6.28-1+rpt1_arm64.deb" \
             "http://archive.raspberrypi.com/debian/pool/main/l/linux/linux-image-6.6.47+rpt-rpi-v8_1:6.6.47-1+rpt1_arm64.deb"; do
-            wget -q "$url" -O /tmp/kernel.deb && break
+            wget -nv "$url" -O /tmp/kernel.deb 2>&1 && break
           done
           ls -lh /tmp/kernel.deb
 
@@ -48,14 +48,17 @@ jobs:
         run: |
           cd /tmp
           ar x kernel.deb
-          tar xf data.tar.* 2>/dev/null || tar xf data.tar.xz 2>/dev/null
-          find boot/ -name "vmlinuz-*" -exec cp {} ${{ github.workspace }}/output/kernel8.img \;
-          echo "kernel done"
+          ls -la data.tar.* 2>&1
+          tar xf data.tar.xz boot/vmlinuz-*
+          mkdir -p ${{ github.workspace }}/output
+          cp boot/vmlinuz-* ${{ github.workspace }}/output/kernel8.img
+          ls -lh ${{ github.workspace }}/output/kernel8.img
+          echo "Kernel extracted OK"
 
       - name: Package
         run: |
           mkdir -p output
-          cp ${{ github.workspace }}/DirettaAlsaHost/alsa_bridge.ko output/
+          cp DirettaAlsaHost/alsa_bridge.ko output/
           echo "Source version: ${{ env.KERNEL_VERSION }}" > output/version.txt
           ls -lh output/
 
