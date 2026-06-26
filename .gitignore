@@ -1,0 +1,4 @@
+dist/
+*.ko
+*.zip
+.DS_Store
