@@ -31,21 +31,16 @@ jobs:
           # Boot-essential drivers built-in (=y) → no initramfs needed
           #   EXT4_FS: root filesystem (was =m)
           #   FAT_FS / VFAT_FS: /boot partition (was =m)
-          #   MMC_SDHCI_IPROC: Pi 4B eMMC2 driver (was =m, NOT bcm2835_sdhci!)
-          #   SND + SND_USB_AUDIO: USB DAC (SND was =m, must be =y first)
-          printf '%s\n' \
-            'CONFIG_EXT4_FS=y' \
-            'CONFIG_FAT_FS=y' \
-            'CONFIG_VFAT_FS=y' \
-            'CONFIG_MMC_BLOCK=y' \
-            'CONFIG_MMC_SDHCI_IPROC=y' \
-            'CONFIG_SND=y' \
-            'CONFIG_SND_TIMER=y' \
-            'CONFIG_SND_PCM=y' \
-            'CONFIG_SND_USB=y' \
-            'CONFIG_SND_USB_AUDIO=y' \
-            > kernel-fragment.config
-          scripts/kconfig/merge_config.sh -m .config kernel-fragment.config
+          #   MMC_SDHCI_IPROC: Pi 4B eMMC2 driver (sdhci-iproc, was not set in arm32)
+          #   ARCH_BCM2711: enable BCM2711 arch (dependency for MMC_SDHCI_IPROC)
+          #   SND + SND_USB_AUDIO: USB DAC (SND was =m)
+          for opt in ARCH_BCM2711 \
+                     MMC_SDHCI_IPROC \
+                     EXT4_FS FAT_FS VFAT_FS MMC_BLOCK \
+                     SND SND_TIMER SND_PCM SND_HWDEP \
+                     SND_USB SND_USB_MIDI_LIB SND_USB_AUDIO; do
+            scripts/config --enable "$opt"
+          done
           make olddefconfig
           make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             modules_prepare
