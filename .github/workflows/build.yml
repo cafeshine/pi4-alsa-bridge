@@ -27,6 +27,19 @@ jobs:
         run: |
           make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             bcm2711_defconfig
+          # Customize: audio-optimized minimal (SOTM reference)
+          # Disable unnecessary GPU/display/WiFi/BT
+          ./scripts/config --disable DRM --disable DRM_VC4 --disable DRM_VC4_HDMI
+          ./scripts/config --disable SND_BCM2835
+          ./scripts/config --disable WLAN --disable BRCMFMAC --disable BRCMUTIL
+          ./scripts/config --disable BT --disable BT_HCIBTUSB --disable BT_HCIUART
+          ./scripts/config --disable MEDIA_SUPPORT --disable MEDIA_CAMERA_SUPPORT
+          # Audio optimization: full preemption, 1000Hz tick
+          ./scripts/config --enable PREEMPT --set-val HZ 1000 --enable HZ_1000
+          ./scripts/config --enable RT_MUTEXES
+          ./scripts/config --disable NO_HZ_FULL --enable NO_HZ_IDLE
+          make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            olddefconfig
           make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             modules_prepare
           KVER=$(grep UTS_RELEASE include/generated/utsrelease.h | awk -F'"' '{print $2}')
