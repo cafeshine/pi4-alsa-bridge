@@ -27,8 +27,23 @@ jobs:
         run: |
           make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             bcm2711_defconfig
-          # Keep core ALSA USB audio built-in (=y) so kernel7l.img
-          # itself has USB DAC support without needing extra modules
+          # Trim: SOTM-style headless audio config
+          # Disable GPU/DRM (unnecessary for headless Pi)
+          sed -i '/^CONFIG_DRM_VC4=/s/=.*/=n/' .config
+          sed -i '/^CONFIG_DRM=/s/=.*/=n/' .config
+          # Disable WiFi/BT
+          sed -i '/^CONFIG_CFG80211=/s/=.*/=n/' .config
+          sed -i '/^CONFIG_MAC80211=/s/=.*/=n/' .config
+          sed -i '/^CONFIG_BT[^_]=\|^CONFIG_BT_/s/=.*/=n/' .config
+          sed -i '/^CONFIG_RFKILL=/s/=.*/=n/' .config
+          # Disable Media/V4L/Camera
+          sed -i '/^CONFIG_MEDIA_SUPPORT=/s/=.*/=n/' .config
+          sed -i '/^CONFIG_VIDEO_BCM2835=/s/=.*/=n/' .config
+          # Disable unnecessary input devices
+          sed -i '/^CONFIG_INPUT_JOYSTICK=/s/=.*/=n/' .config
+          sed -i '/^CONFIG_INPUT_TABLET=/s/=.*/=n/' .config
+          sed -i '/^CONFIG_INPUT_TOUCHSCREEN=/s/=.*/=n/' .config
+          # Keep ALSA USB audio built-in (=y) for USB DAC support
           for opt in SND_USB_AUDIO SND_PCM SND_TIMER SND_HWDEP \
                      SND_USB_MIDI_LIB SND_USB SND_SOC; do
             scripts/config --set-val "$opt" y
