@@ -1,10 +1,10 @@
-name: Build alsa_bridge.ko + kernel Image (single source) — 32-bit ARM
+name: Build alsa_bridge.ko + kernel Image (64-bit ARMv8)
 
 on:
   workflow_dispatch:
 
 env:
-  CROSS_COMPILE: arm-linux-gnueabihf-
+  CROSS_COMPILE: aarch64-linux-gnu-
 
 jobs:
   build:
@@ -15,50 +15,50 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-arm-linux-gnueabihf bc flex bison libelf-dev kmod
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu bc flex bison libelf-dev kmod
 
       - name: Download RPi kernel source
         run: |
           git clone --depth=1 -b rpi-6.6.y \
             https://github.com/raspberrypi/linux.git /tmp/linux
 
-      - name: Build kernel (all modules + zImage)
+      - name: Build kernel (Image + modules)
         working-directory: /tmp/linux
         run: |
-          make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+          make ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             bcm2711_defconfig
           # Trim: SOTM-style headless audio config
-          # Disable GPU/DRM (unnecessary for headless Pi)
-          sed -i '/^CONFIG_DRM_VC4=/s/=.*/=n/' .config
-          sed -i '/^CONFIG_DRM=/s/=.*/=n/' .config
-          # Disable WiFi/BT
-          sed -i '/^CONFIG_CFG80211=/s/=.*/=n/' .config
-          sed -i '/^CONFIG_MAC80211=/s/=.*/=n/' .config
-          sed -i '/^CONFIG_BT[^_]=\|^CONFIG_BT_/s/=.*/=n/' .config
-          sed -i '/^CONFIG_RFKILL=/s/=.*/=n/' .config
-          # Disable Media/V4L/Camera
-          sed -i '/^CONFIG_MEDIA_SUPPORT=/s/=.*/=n/' .config
-          sed -i '/^CONFIG_VIDEO_BCM2835=/s/=.*/=n/' .config
-          # Disable unnecessary input devices
-          sed -i '/^CONFIG_INPUT_JOYSTICK=/s/=.*/=n/' .config
-          sed -i '/^CONFIG_INPUT_TABLET=/s/=.*/=n/' .config
-          sed -i '/^CONFIG_INPUT_TOUCHSCREEN=/s/=.*/=n/' .config
-          # Keep ALSA USB audio built-in (=y) for USB DAC support
+          sed -i '/^CONFIG_DRM_VC4=/s/=.*/=n/' /tmp/linux/.config
+          sed -i '/^CONFIG_DRM=/s/=.*/=n/' /tmp/linux/.config
+          sed -i '/^CONFIG_CFG80211=/s/=.*/=n/' /tmp/linux/.config
+          sed -i '/^CONFIG_MAC80211=/s/=.*/=n/' /tmp/linux/.config
+          sed -i '/^CONFIG_BT[^_]=\|^CONFIG_BT_/s/=.*/=n/' /tmp/linux/.config
+          sed -i '/^CONFIG_RFKILL=/s/=.*/=n/' /tmp/linux/.config
+          sed -i '/^CONFIG_MEDIA_SUPPORT=/s/=.*/=n/' /tmp/linux/.config
+          sed -i '/^CONFIG_VIDEO_BCM2835=/s/=.*/=n/' /tmp/linux/.config
+          sed -i '/^CONFIG_INPUT_JOYSTICK=/s/=.*/=n/' /tmp/linux/.config
+          sed -i '/^CONFIG_INPUT_TABLET=/s/=.*/=n/' /tmp/linux/.config
+          sed -i '/^CONFIG_INPUT_TOUCHSCREEN=/s/=.*/=n/' /tmp/linux/.config
+          # Match running kernel: enable PREEMPT
+          sed -i '/CONFIG_PREEMPT_VOLUNTARY=/d' /tmp/linux/.config
+          echo 'CONFIG_PREEMPT=y' >> /tmp/linux/.config
+          # Keep ALSA USB audio built-in (=y)
           for opt in SND_USB_AUDIO SND_PCM SND_TIMER SND_HWDEP \
                      SND_USB_MIDI_LIB SND_USB SND_SOC; do
             scripts/config --set-val "$opt" y
-          done; make olddefconfig
-          make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+          done
+          make olddefconfig
+          make ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             modules_prepare
           KVER=$(grep UTS_RELEASE include/generated/utsrelease.h | awk -F'"' '{print $2}')
           echo "KERNEL_VERSION=$KVER" >> $GITHUB_ENV
-          make -j$(nproc) ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
-            zImage modules
+          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            Image modules dtbs
 
       - name: Build alsa_bridge.ko
         run: |
           make -C /tmp/linux \
-            ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             M=${{ github.workspace }}/DirettaAlsaHost \
             KBUILD_MODPOST_WARN=1 modules
 
@@ -66,19 +66,17 @@ jobs:
         run: |
           mkdir -p output/
           KVER=${{ env.KERNEL_VERSION }}
-          # kernel zImage → kernel7l.img (Pi 4B 32-bit)
-          cp /tmp/linux/arch/arm/boot/zImage output/kernel7l.img
-          # Install ALL kernel modules (snd, snd-pcm, etc.)
+          # kernel Image -> kernel8.img (Pi 4B 64-bit)
+          cp /tmp/linux/arch/arm64/boot/Image output/kernel8.img
+          # Install ALL kernel modules
           make -C /tmp/linux \
-            ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             modules_install INSTALL_MOD_PATH=${{ github.workspace }}/output
           # alsa_bridge.ko into modules tree for depmod
           mkdir -p output/lib/modules/$KVER/kernel/drivers/alsa_bridge
           cp ${{ github.workspace }}/DirettaAlsaHost/alsa_bridge.ko \
              output/lib/modules/$KVER/kernel/drivers/alsa_bridge/
-          # also standalone copy
           cp ${{ github.workspace }}/DirettaAlsaHost/alsa_bridge.ko output/
-          # regenerate dep
           depmod -b output -F /tmp/linux/System.map $KVER
           echo "Source version: $KVER" > output/version.txt
           ls -lhR output/
