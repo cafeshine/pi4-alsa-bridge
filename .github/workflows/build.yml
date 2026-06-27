@@ -1,10 +1,10 @@
-name: Build alsa_bridge.ko + kernel Image (single source) — 32-bit ARM
+name: Build alsa_bridge.ko + kernel Image (single source) — 64-bit ARMv8
 
 on:
   workflow_dispatch:
 
 env:
-  CROSS_COMPILE: arm-linux-gnueabihf-
+  CROSS_COMPILE: aarch64-linux-gnu-
 
 jobs:
   build:
@@ -16,43 +16,38 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            gcc-arm-linux-gnueabihf bc flex bison libelf-dev kmod
+            gcc-aarch64-linux-gnu bc flex bison libelf-dev kmod
 
       - name: Download RPi kernel source
         run: |
           git clone --depth=1 -b rpi-6.6.y \
             https://github.com/raspberrypi/linux.git /tmp/linux
 
-      - name: Build kernel (all modules + zImage)
+      - name: Build kernel (all modules + Image)
         working-directory: /tmp/linux
         run: |
-          make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+          make ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             bcm2711_defconfig
-          # Boot-essential drivers built-in (=y) → no initramfs needed
-          #   EXT4_FS: root filesystem (was =m)
-          #   FAT_FS / VFAT_FS: /boot partition (was =m)
-          #   MMC_SDHCI_IPROC: Pi 4B eMMC2 driver (sdhci-iproc, was not set in arm32)
-          #   ARCH_BCM2711: enable BCM2711 arch (dependency for MMC_SDHCI_IPROC)
-          #   SND + SND_USB_AUDIO: USB DAC (SND was =m)
-          for opt in ARCH_BCM2711 \
-                     MMC_SDHCI_IPROC \
-                     EXT4_FS FAT_FS VFAT_FS MMC_BLOCK \
-                     SND SND_TIMER SND_PCM SND_HWDEP \
-                     SND_USB SND_USB_MIDI_LIB SND_USB_AUDIO; do
+          # USB audio built-in (=y) → no module dependency
+          #   FB_SIMPLE: basic framebuffer (HDMI output)
+          #   BROADCOM_PHY: Ethernet PHY
+          for opt in SND_USB_AUDIO SND_PCM SND_TIMER SND_HWDEP \
+                     SND_USB SND_USB_MIDI_LIB \
+                     FB_SIMPLE BROADCOM_PHY; do
             scripts/config --enable "$opt"
           done
           make olddefconfig
-          make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+          make ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             modules_prepare
           KVER=$(grep UTS_RELEASE include/generated/utsrelease.h | awk -F'"' '{print $2}')
           echo "KERNEL_VERSION=$KVER" >> $GITHUB_ENV
-          make -j$(nproc) ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
-            zImage modules
+          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            Image modules
 
       - name: Build alsa_bridge.ko
         run: |
           make -C /tmp/linux \
-            ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             M=${{ github.workspace }}/DirettaAlsaHost \
             KBUILD_MODPOST_WARN=1 modules
 
@@ -60,11 +55,10 @@ jobs:
         run: |
           mkdir -p output/
           KVER=${{ env.KERNEL_VERSION }}
-          # kernel zImage → kernel7l.img (Pi 4B 32-bit)
-          cp /tmp/linux/arch/arm/boot/zImage output/kernel7l.img
-          # Install ALL kernel modules (snd, snd-pcm, etc.)
+          cp /tmp/linux/arch/arm64/boot/Image output/kernel8.img
+          # Install ALL kernel modules
           make -C /tmp/linux \
-            ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             modules_install INSTALL_MOD_PATH=${{ github.workspace }}/output
           # alsa_bridge.ko into modules tree for depmod
           mkdir -p output/lib/modules/$KVER/kernel/drivers/alsa_bridge
