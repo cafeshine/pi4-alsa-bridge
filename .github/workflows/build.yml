@@ -27,6 +27,12 @@ jobs:
         run: |
           make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             bcm2711_defconfig
+          # Keep core ALSA USB audio built-in (=y) so kernel7l.img
+          # itself has USB DAC support without needing extra modules
+          for opt in SND_USB_AUDIO SND_PCM SND_TIMER SND_HWDEP \
+                     SND_USB_MIDI_LIB SND_USB SND_SOC; do
+            scripts/config --set-val "$opt" y
+          done; make olddefconfig
           make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             modules_prepare
           KVER=$(grep UTS_RELEASE include/generated/utsrelease.h | awk -F'"' '{print $2}')
