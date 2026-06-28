@@ -28,12 +28,16 @@ jobs:
         run: |
           make ARCH=arm64 CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             bcm2711_defconfig
-          # USB audio built-in (=y) → no module dependency
+          # Built-in (=y) → no module/initramfs dependency
+          #   MMC_SDHCI + MMC_SDHCI_IPROC: SD card boot
+          #   SND_USB_AUDIO*: USB DAC support
           #   FB_SIMPLE: basic framebuffer (HDMI output)
           #   BROADCOM_PHY: Ethernet PHY
-          for opt in SND_USB_AUDIO SND_PCM SND_TIMER SND_HWDEP \
-                     SND_USB SND_USB_MIDI_LIB \
-                     FB_SIMPLE BROADCOM_PHY; do
+          for opt in \
+            MMC_SDHCI MMC_SDHCI_IPROC \
+            SND_USB_AUDIO SND_PCM SND_TIMER SND_HWDEP \
+            SND_USB SND_USB_MIDI_LIB \
+            FB_SIMPLE BROADCOM_PHY; do
             scripts/config --enable "$opt"
           done
           make olddefconfig
