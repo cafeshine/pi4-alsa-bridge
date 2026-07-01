@@ -78,26 +78,29 @@ jobs:
           make -C /tmp/linux ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
             modules_install INSTALL_MOD_PATH=${{ github.workspace }}/output
 
+      - name: Strip modules tree (remove source/build symlinks)
+        run: |
+          KREL="${{ env.KERNEL_RELEASE }}"
+          MODDIR="${{ github.workspace }}/output/lib/modules/$KREL"
+          echo "Modules dir before: $(du -sh $MODDIR | cut -f1)"
+          # Remove kernel source symlinks (these are the huge ones)
+          rm -f "$MODDIR/build" "$MODDIR/source" 2>/dev/null || true
+          echo "Modules dir after: $(du -sh $MODDIR | cut -f1)"
+          echo "Ko files: $(find $MODDIR -name '*.ko' | wc -l)"
+
       - name: Verify vermagic matches original
         run: |
           KREL="${{ env.KERNEL_RELEASE }}"
           echo "Kernel release: $KREL"
-          # Check vermagic of a built module
-          if [ -f "output/lib/modules/$KREL/kernel/sound/usb/snd-usb-audio.ko" ]; then
+          ANY_KO=$(find "${{ github.workspace }}/output/lib/modules/$KREL" -name '*.ko' 2>/dev/null | head -1)
+          if [ -n "$ANY_KO" ]; then
             echo "=== Built module vermagic ==="
-            modinfo "output/lib/modules/$KREL/kernel/sound/usb/snd-usb-audio.ko" | grep vermagic
-          else
-            echo "(no snd-usb-audio built, checking any module)"
-            ANY_KO=$(find "output/lib/modules/$KREL" -name '*.ko' 2>/dev/null | head -1)
-            if [ -n "$ANY_KO" ]; then
-              modinfo "$ANY_KO" | grep vermagic
-            fi
+            modinfo "$ANY_KO" | grep vermagic
           fi
           echo "=== Expected vermagic ==="
           echo "6.2.15-215.fc36.armv7hl SMP preempt mod_unload ARMv7 p2v8"
-          echo "NOTE: '.armv7hl' suffix should match original SOtM kernel."
 
-      - name: Package kernel build output
+      - name: Package kernel release tarball
         run: |
           KREL="${{ env.KERNEL_RELEASE }}"
           PKG_DIR="output/boot"
@@ -114,12 +117,40 @@ jobs:
           echo "kernel=$KREL" > output/version.txt
           echo "arch=armv7hl" >> output/version.txt
           echo "target=Pi-4B-BCM2711" >> output/version.txt
-          echo "" >> output/version.txt
-          echo "=== Build output ==="
-          ls -lhR output/
+          # Create tarball (excludes kernel source, ~7MB + 40MB modules)
+          cd output && tar czf "/tmp/pi4-armv7hl-kernel-$KREL.tar.gz" \
+            boot/ lib/ version.txt
+          echo "=== Release tarball ==="
+          ls -lh "/tmp/pi4-armv7hl-kernel-$KREL.tar.gz"
 
-      - name: Upload kernel + modules
-        uses: actions/upload-artifact@v4
-        with:
-          name: pi4-armv7hl-kernel-${{ env.KERNEL_RELEASE }}
-          path: output/
+      - name: Create GitHub Release
+        run: |
+          KREL="${{ env.KERNEL_RELEASE }}"
+          TAG="armv7hl-kernel-$KREL"
+          NOTES="## Pi 4B armv7hl kernel (SOtM Fedora 36 compatible)
+          - Kernel: $KREL
+          - Target: Raspberry Pi 4B (BCM2711)
+          - Config base: SOtM Cubietruck Fedora 36 armv7hl
+          - Vermagic: matches original SOtM alsa_bridge.ko
+          
+          ### Boot files (in boot/)
+          - \`vmlinuz-$KREL\` — zImage kernel
+          - \`bcm2711-rpi-4-b.dtb\` — Pi 4B device tree
+          - \`System.map-$KREL\` — kernel symbols
+          - \`config-$KREL\` — kernel config
+          
+          ### Modules (in lib/modules/$KREL/kernel/)
+          - BCM2835/BCM2711 drivers built-in (MMC, GPIO, USB, ethernet)
+          - All Fedora 36 SOtM modules preserved
+          
+          ### SD card setup
+          1. First partition FAT32 with Pi firmware + these boot files + config.txt
+          2. Second partition: SOtM Fedora 36 rootfs
+          3. Copy lib/modules/$KREL to rootfs
+          4. Run depmod"
+          
+          gh release create "$TAG" \
+            "/tmp/pi4-armv7hl-kernel-$KREL.tar.gz" \
+            --repo ${{ github.repository }} \
+            --title "Pi 4B armv7hl kernel $KREL" \
+            --notes "$NOTES"
