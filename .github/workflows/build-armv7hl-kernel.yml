@@ -37,7 +37,12 @@ jobs:
             https://github.com/raspberrypi/linux.git /tmp/linux
           echo "Source ready at /tmp/linux ($(du -sh /tmp/linux | cut -f1))"
           # Show the exact version
-          cd /tmp/linux && git log --oneline -1
+          cd /tmp/linux && head -5 Makefile
+          # Fix SUBLEVEL to match SOtM's 6.2.15 (rpi-6.2.y may be 6.2.x > 15)
+          echo "Fixing SUBLEVEL to 15 for vermagic match..."
+          sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 15/' /tmp/linux/Makefile
+          echo "After fix:"
+          head -5 /tmp/linux/Makefile
 
       - name: Apply RPi bcm2711_defconfig base
         working-directory: /tmp/linux
