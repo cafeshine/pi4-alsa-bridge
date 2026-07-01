@@ -31,23 +31,22 @@ jobs:
             bc flex bison libelf-dev kmod \
             cpio rsync
 
-      - name: Download and extract kernel source ${{ env.KVER }}
+      - name: Download RPi kernel source (rpi-6.2.y)
         run: |
-          KVER_FULL="${{ env.KVER }}"
-          MAJOR="${KVER_FULL%%.*}"
-          URL="https://cdn.kernel.org/pub/linux/kernel/v${MAJOR}.x/linux-${KVER_FULL}.tar.xz"
-          echo "Downloading: $URL"
-          curl -sL "$URL" -o /tmp/linux.tar.xz
-          echo "Extracting..."
-          tar -xf /tmp/linux.tar.xz -C /tmp/
-          mv "/tmp/linux-$KVER_FULL" /tmp/linux
+          git clone --depth=1 -b rpi-6.2.y \
+            https://github.com/raspberrypi/linux.git /tmp/linux
           echo "Source ready at /tmp/linux ($(du -sh /tmp/linux | cut -f1))"
+          # Show the exact version
+          cd /tmp/linux && git log --oneline -1
 
-      - name: Apply SOtM kernel config (Fedora 36 armv7hl base)
+      - name: Apply RPi bcm2711_defconfig base
+        working-directory: /tmp/linux
         run: |
-          cp "${{ github.workspace }}/config-6.2.15-215.fc36.armv7hl" /tmp/linux/.config
+          make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} bcm2711_defconfig
+          echo "=== Base config key settings ==="
+          grep -E '(CONFIG_PREEMPT|CONFIG_SMP|CONFIG_ARM_LPAE|CONFIG_LOCALVERSION|CONFIG_MMC_BCM)' .config | grep -v '^#'
 
-      - name: Convert config for Pi 4B BCM2711
+      - name: Overlay SOtM vermagic-compatible settings
         working-directory: /tmp/linux
         run: |
           bash "${{ github.workspace }}/scripts/armv7hl-bcm2711-config.sh"
