@@ -1,0 +1,125 @@
+name: Build armv7hl kernel for Pi 4B (SOtM Fedora 36 compatible)
+
+on:
+  workflow_dispatch:
+    inputs:
+      kver:
+        description: 'Kernel version (e.g. 6.2.15)'
+        required: false
+        default: '6.2.15'
+      localversion:
+        description: 'LOCALVERSION for vermagic match'
+        required: false
+        default: '-215.fc36.armv7hl'
+
+env:
+  KVER: ${{ github.event.inputs.kver || '6.2.15' }}
+  LOCALVER: ${{ github.event.inputs.localversion || '-215.fc36.armv7hl' }}
+  CROSS_COMPILE: arm-linux-gnueabihf-
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            gcc-arm-linux-gnueabihf \
+            bc flex bison libelf-dev kmod \
+            cpio rsync
+
+      - name: Download and extract kernel source ${{ env.KVER }}
+        run: |
+          KVER_FULL="${{ env.KVER }}"
+          MAJOR="${KVER_FULL%%.*}"
+          URL="https://cdn.kernel.org/pub/linux/kernel/v${MAJOR}.x/linux-${KVER_FULL}.tar.xz"
+          echo "Downloading: $URL"
+          curl -sL "$URL" -o /tmp/linux.tar.xz
+          echo "Extracting..."
+          tar -xf /tmp/linux.tar.xz -C /tmp/
+          mv "/tmp/linux-$KVER_FULL" /tmp/linux
+          echo "Source ready at /tmp/linux ($(du -sh /tmp/linux | cut -f1))"
+
+      - name: Apply SOtM kernel config (Fedora 36 armv7hl base)
+        run: |
+          cp "${{ github.workspace }}/config-6.2.15-215.fc36.armv7hl" /tmp/linux/.config
+
+      - name: Convert config for Pi 4B BCM2711
+        working-directory: /tmp/linux
+        run: |
+          bash "${{ github.workspace }}/scripts/armv7hl-bcm2711-config.sh"
+
+      - name: Build kernel (zImage, modules, dtbs)
+        working-directory: /tmp/linux
+        run: |
+          make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            -j$(nproc) zImage modules dtbs
+          echo "=== zImage ==="
+          file arch/arm/boot/zImage
+          echo "=== DTB ==="
+          ls -la arch/arm/boot/dts/bcm2711*.dtb
+          # Get the full kernel version
+          KREL=$(make ARCH=arm kernelrelease)
+          echo "KERNEL_RELEASE=$KREL" >> $GITHUB_ENV
+          echo "Built: $KREL"
+
+      - name: Build System.map
+        working-directory: /tmp/linux
+        run: |
+          make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} System.map
+          ls -la System.map
+
+      - name: Install modules
+        run: |
+          mkdir -p output/
+          make -C /tmp/linux ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
+            modules_install INSTALL_MOD_PATH=${{ github.workspace }}/output
+
+      - name: Verify vermagic matches original
+        run: |
+          KREL="${{ env.KERNEL_RELEASE }}"
+          echo "Kernel release: $KREL"
+          # Check vermagic of a built module
+          if [ -f "output/lib/modules/$KREL/kernel/sound/usb/snd-usb-audio.ko" ]; then
+            echo "=== Built module vermagic ==="
+            modinfo "output/lib/modules/$KREL/kernel/sound/usb/snd-usb-audio.ko" | grep vermagic
+          else
+            echo "(no snd-usb-audio built, checking any module)"
+            ANY_KO=$(find "output/lib/modules/$KREL" -name '*.ko' 2>/dev/null | head -1)
+            if [ -n "$ANY_KO" ]; then
+              modinfo "$ANY_KO" | grep vermagic
+            fi
+          fi
+          echo "=== Expected vermagic ==="
+          echo "6.2.15-215.fc36.armv7hl SMP preempt mod_unload ARMv7 p2v8"
+          echo "NOTE: '.armv7hl' suffix should match original SOtM kernel."
+
+      - name: Package kernel build output
+        run: |
+          KREL="${{ env.KERNEL_RELEASE }}"
+          PKG_DIR="output/boot"
+          mkdir -p "$PKG_DIR"
+          # Copy kernel image
+          cp /tmp/linux/arch/arm/boot/zImage "$PKG_DIR/vmlinuz-$KREL"
+          # Copy DTB
+          cp /tmp/linux/arch/arm/boot/dts/bcm2711-rpi-4-b.dtb "$PKG_DIR/"
+          # Copy System.map
+          cp /tmp/linux/System.map "$PKG_DIR/System.map-$KREL"
+          # Copy config
+          cp /tmp/linux/.config "$PKG_DIR/config-$KREL"
+          # Version info
+          echo "kernel=$KREL" > output/version.txt
+          echo "arch=armv7hl" >> output/version.txt
+          echo "target=Pi-4B-BCM2711" >> output/version.txt
+          echo "" >> output/version.txt
+          echo "=== Build output ==="
+          ls -lhR output/
+
+      - name: Upload kernel + modules
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi4-armv7hl-kernel-${{ env.KERNEL_RELEASE }}
+          path: output/
