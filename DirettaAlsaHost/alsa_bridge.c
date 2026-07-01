@@ -987,6 +987,7 @@ static int diretta_alsa_mmap(struct file *file, struct vm_area_struct *vma){
 static const struct file_operations diretta_alsa_fops = {
 	.owner		= THIS_MODULE,
 	.unlocked_ioctl	= diretta_alsa_ioctl,
+	.compat_ioctl	= diretta_alsa_ioctl,
 	.open		= diretta_alsa_open,
 	.release	= diretta_alsa_release,
 	.mmap = diretta_alsa_mmap,

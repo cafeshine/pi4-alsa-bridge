@@ -93,22 +93,24 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable CONFIG_PINCTRL_BCM2835
 # Mailbox (needed for VC4 GPU / firmware interface)
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable CONFIG_BCM2835_MBOX
 
-# === Step 4: Enable Pi 4B device drivers ===
-
-# MMC/SD card
-$SCRIPTS_DIR/config --file "$CONFIG_FILE" --module CONFIG_MMC_BCM2835
-$SCRIPTS_DIR/config --file "$CONFIG_FILE" --module CONFIG_MMC_SDHCI
-$SCRIPTS_DIR/config --file "$CONFIG_FILE" --module CONFIG_MMC_SDHCI_IPROC
+# === Step 4: Enable Pi 4B device drivers (ALL BOOT-CRITICAL =y) ===
+# MMC/SD card - BUILT-IN (without these, kernel can't mount rootfs)
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_MMC_BCM2835
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_MMC_SDHCI
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_MMC_SDHCI_IPROC
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_MMC_SDHCI_PLTFM
 
-# Ethernet (BCMGENET - built-in for NFS root compatibility)
+# Ethernet (BCMGENET - built-in)
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_BCMGENET
 
-# USB
+# USB (DWC3 for USB 3.0 on Pi 4B - built-in)
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_USB_DWC3
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_USB_DWC3_HOST
-$SCRIPTS_DIR/config --file "$CONFIG_FILE" --module  CONFIG_USB_XHCI_HCD
-$SCRIPTS_DIR/config --file "$CONFIG_FILE" --module  CONFIG_USB_XHCI_PCI
+# XHCI/USB 2.0 - built-in for USB keyboard at boot
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_USB_XHCI_HCD
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_USB_XHCI_PCI
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_USB_EHCI_HCD
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_USB_OHCI_HCD
 
 # I2C
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_I2C_BCM2835
@@ -119,8 +121,9 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_SPI_BCM2835
 # PWM
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_PWM_BCM2835
 
-# DRM/GPU (VC4 for HDMI output)
+# Framebuffer (SIMPLE FB = built-in for early HDMI console)
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_DRM
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_FB_SIMPLE
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --module  CONFIG_DRM_VC4
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --module  CONFIG_DRM_VC4_HDMI
 
@@ -156,6 +159,6 @@ echo ""
 echo "Verified key settings:"
 grep -E '(CONFIG_ARCH_BCM|CONFIG_ARCH_BCM2835|CONFIG_BCM2711|CONFIG_ARCH_SUNXI|CONFIG_PREEMPT|CONFIG_SMP|CONFIG_MODVERSIONS|CONFIG_MODULE_UNLOAD|CONFIG_ARM_LPAE|CONFIG_LOCALVERSION)' "$CONFIG_FILE" | grep -v '^#' | head -20
 echo ""
-grep -E '(CONFIG_MMC_BCM2835|CONFIG_MMC_SDHCI_IPROC|CONFIG_GPIO_BCM2835|CONFIG_PINCTRL_BCM2835|CONFIG_BCMGENET|CONFIG_USB_DWC3|CONFIG_DRM_VC4)' "$CONFIG_FILE" | grep -v '^#' | head -10
+grep -E '(CONFIG_MMC_BCM2835|CONFIG_MMC_SDHCI_IPROC|CONFIG_GPIO_BCM2835|CONFIG_PINCTRL_BCM2835|CONFIG_BCMGENET|CONFIG_USB_DWC3|CONFIG_DRM_VC4|CONFIG_FB_SIMPLE)' "$CONFIG_FILE" | grep -v '^#' | head -10
 echo ""
 echo "SUCCESS: Config ready for Pi 4B armv7hl build."
