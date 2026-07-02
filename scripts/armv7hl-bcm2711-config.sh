@@ -59,6 +59,13 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_MODULE_SIG_ALL
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_MODULE_SIG_SHA256
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --set-str CONFIG_MODULE_SIG_HASH "sha256"
 
+# Memory layout: match Fedora 36 config (3G/1G split, no LPAE)
+# Fedora uses VMSPLIT_3G + PAGE_OFFSET=0xC0000000 + HIGHMEM
+# LPAE uses a different layout that breaks alsa_bridge.ko relocations
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_ARM_LPAE
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_VMSPLIT_3G
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --set-val CONFIG_PAGE_OFFSET 0xC0000000
+
 # === Step 2: Boot-critical drivers built-in (=y) ===
 # (Most are already =y in bcm2711_defconfig, but ensure)
 
