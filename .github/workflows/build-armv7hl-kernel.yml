@@ -127,34 +127,21 @@ jobs:
           echo "=== Release tarball ==="
           ls -lh "/tmp/pi4-armv7hl-kernel-$KREL.tar.gz"
 
+      - name: Upload artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi4-armv7hl-kernel-${{ env.KERNEL_RELEASE }}
+          path: /tmp/pi4-armv7hl-kernel-${{ env.KERNEL_RELEASE }}.tar.gz
+
       - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           KREL="${{ env.KERNEL_RELEASE }}"
           TAG="armv7hl-kernel-$KREL"
-          NOTES="## Pi 4B armv7hl kernel (SOtM Fedora 36 compatible)
-          - Kernel: $KREL
-          - Target: Raspberry Pi 4B (BCM2711)
-          - Config base: SOtM Cubietruck Fedora 36 armv7hl
-          - Vermagic: matches original SOtM alsa_bridge.ko
-          
-          ### Boot files (in boot/)
-          - \`vmlinuz-$KREL\` — zImage kernel
-          - \`bcm2711-rpi-4-b.dtb\` — Pi 4B device tree
-          - \`System.map-$KREL\` — kernel symbols
-          - \`config-$KREL\` — kernel config
-          
-          ### Modules (in lib/modules/$KREL/kernel/)
-          - BCM2835/BCM2711 drivers built-in (MMC, GPIO, USB, ethernet)
-          - All Fedora 36 SOtM modules preserved
-          
-          ### SD card setup
-          1. First partition FAT32 with Pi firmware + these boot files + config.txt
-          2. Second partition: SOtM Fedora 36 rootfs
-          3. Copy lib/modules/$KREL to rootfs
-          4. Run depmod"
-          
           gh release create "$TAG" \
             "/tmp/pi4-armv7hl-kernel-$KREL.tar.gz" \
             --repo ${{ github.repository }} \
             --title "Pi 4B armv7hl kernel $KREL" \
-            --notes "$NOTES"
+            --notes "Kernel $KREL for Raspberry Pi 4B (armv7hl, SOtM Fedora 36 compatible)" || \
+            echo "Release creation failed (may already exist), artifact uploaded instead"
