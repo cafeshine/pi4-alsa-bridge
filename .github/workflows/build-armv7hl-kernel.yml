@@ -41,11 +41,11 @@ jobs:
           # Fix SUBLEVEL to match SOtM's 6.2.15 (rpi-6.2.y may be 6.2.x > 15)
           echo "Fixing SUBLEVEL to 15 for vermagic match..."
           sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 15/' /tmp/linux/Makefile
-          # Commit the change so the tree is clean (prevents '+' suffix in kernel version)
-          cd /tmp/linux && git add Makefile && git commit -m "fix SUBLEVEL to 15" --allow-empty
           echo "After fix:"
           head -5 /tmp/linux/Makefile
-          echo "Git tree clean: $(cd /tmp/linux && git status --porcelain | wc -l)"
+          # Remove .git to prevent '+' suffix from setlocalversion
+          rm -rf /tmp/linux/.git
+          echo "Git removed - no '+' suffix in kernel version"
 
       - name: Apply RPi bcm2711_defconfig base
         working-directory: /tmp/linux
