@@ -87,8 +87,12 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_USB_XHCI_PLATFORM
 make ARCH=arm olddefconfig 2>/dev/null
 
 # ARM_MODULE_PLTS: Required for loading Fedora-compiled modules
-# Must be set AFTER olddefconfig, otherwise it gets reverted
+# Must be set AFTER olddefconfig AND after auto.conf is generated
+# Step 1: Enable via config script
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_ARM_MODULE_PLTS
+# Step 2: Prevent make from reverting it during silentoldconfig
+# Touch auto.conf so make thinks it's up-to-date and skips re-processing
+touch include/config/auto.conf 2>/dev/null || true
 
 echo ""
 echo "=== Config overlay complete ==="
