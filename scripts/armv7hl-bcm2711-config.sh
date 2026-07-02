@@ -59,6 +59,11 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_MODULE_SIG_ALL
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_MODULE_SIG_SHA256
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --set-str CONFIG_MODULE_SIG_HASH "sha256"
 
+# ARM_MODULE_PLTS: Required for loading Fedora-compiled modules
+# The Fedora 36 toolchain does not generate PLT sections in .ko files.
+# Without this, ALL Fedora kernel modules fail with "module PLT section(s) missing"
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_ARM_MODULE_PLTS
+
 # === Step 2: Boot-critical drivers built-in (=y) ===
 # (Most are already =y in bcm2711_defconfig, but ensure)
 
