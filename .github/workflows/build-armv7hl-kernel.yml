@@ -49,11 +49,11 @@ jobs:
           # Patch: disable PLT section check in module_frob_arch_sections
           # RPi kernel prints "module PLT section(s) missing" for ANY module
           # compiled with a different toolchain, even with ARM_MODULE_PLTS=y.
-          # This patch removes the check entirely, allowing Fedora-compiled .ko
           MODFILE=/tmp/linux/arch/arm/kernel/module.c
-          sed -i 's/pr_warn("module PLT section(s) missing");/\/\/ PLT check disabled/g' "$MODFILE" 2>/dev/null || true
-          sed -i 's/pr_warn("module PLT section(s) missing");/\/\/ PLT check disabled/g' "$MODFILE" 2>/dev/null || true
-          echo "Module PLT check patched"
+          # Comment out the pr_warn line that prints PLT section missing
+          sed -i '/PLT/s/^pr_warn/\/\/ &/' "$MODFILE" 2>/dev/null || true
+          sed -i '/PLT/s/^pr_err/\/\/ &/' "$MODFILE" 2>/dev/null || true
+          echo "Module PLT check patched ($(grep -c 'PLT' $MODFILE 2>/dev/null || echo 0) occurrences)"
 
       - name: Apply RPi bcm2711_defconfig base
         working-directory: /tmp/linux
