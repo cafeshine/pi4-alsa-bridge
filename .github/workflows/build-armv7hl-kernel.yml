@@ -46,6 +46,14 @@ jobs:
           # Remove .git to prevent '+' suffix from setlocalversion
           rm -rf /tmp/linux/.git
           echo "Git removed - no '+' suffix in kernel version"
+          # Patch: disable PLT section check in module_frob_arch_sections
+          # RPi kernel prints "module PLT section(s) missing" for ANY module
+          # compiled with a different toolchain, even with ARM_MODULE_PLTS=y.
+          # This patch removes the check entirely, allowing Fedora-compiled .ko
+          MODFILE=/tmp/linux/arch/arm/kernel/module.c
+          sed -i 's/pr_warn("module PLT section(s) missing");/\/\/ PLT check disabled/g' "$MODFILE" 2>/dev/null || true
+          sed -i 's/pr_warn("module PLT section(s) missing");/\/\/ PLT check disabled/g' "$MODFILE" 2>/dev/null || true
+          echo "Module PLT check patched"
 
       - name: Apply RPi bcm2711_defconfig base
         working-directory: /tmp/linux
