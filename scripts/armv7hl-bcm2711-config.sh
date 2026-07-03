@@ -88,10 +88,17 @@ make ARCH=arm olddefconfig 2>/dev/null
 
 # ARM_MODULE_PLTS: Required for loading Fedora-compiled modules
 # Must be set AFTER olddefconfig AND after auto.conf is generated
-# Step 1: Enable via config script
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_ARM_MODULE_PLTS
-# Step 2: Prevent make from reverting it during silentoldconfig
-# Touch auto.conf so make thinks it's up-to-date and skips re-processing
+
+# FORTIFY_SOURCE + HARDENED_USERCOPY: Required by SOtM's alsa_bridge.ko
+# Fedora-compiled module references __check_object_size and fortify_panic
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_HARDENED_USERCOPY 2>/dev/null || true
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_FORTIFY_SOURCE 2>/dev/null || true
+
+# Increase CMA from default 5MB to 256MB for PCIe DMA (USB VL805 fix)
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --set-val CONFIG_CMA_SIZE_MBYTES 256 2>/dev/null || true
+
+# Prevent make from reverting our manual config settings
 touch include/config/auto.conf 2>/dev/null || true
 
 # Patch module_frob_arch_sections() to NOT reject modules without .plt sections.
