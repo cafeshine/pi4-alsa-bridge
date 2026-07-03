@@ -86,9 +86,12 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_USB_XHCI_PLATFORM
 # Ensure the config is valid (resolve dependencies)
 make ARCH=arm olddefconfig 2>/dev/null
 
-# ARM_MODULE_PLTS: Required for loading Fedora-compiled modules
-# Must be set AFTER olddefconfig AND after auto.conf is generated
-$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_ARM_MODULE_PLTS
+# ARM_MODULE_PLTS: DISABLED — matches Fedora original kernel behavior.
+# Fedora kernel has CONFIG_ARM_MODULE_PLTS=n (module allocation from vmalloc).
+# Enabling PLTS changes module memory layout and breaks alsa_bridge.ko's
+# diretta_alsa_mmap (Bad page map). Not needed for Fedora-compiled .ko since
+# they don't have PLT sections and relocations are within 32-bit range.
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_ARM_MODULE_PLTS 2>/dev/null || true
 
 # FORTIFY_SOURCE + HARDENED_USERCOPY: Required by SOtM's alsa_bridge.ko
 # Fedora-compiled module references __check_object_size and fortify_panic
