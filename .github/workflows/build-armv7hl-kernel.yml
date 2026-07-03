@@ -31,19 +31,22 @@ jobs:
             bc flex bison libelf-dev kmod \
             cpio rsync
 
-      - name: Download RPi kernel source tarball (rpi-6.2.y)
+      - name: Checkout RPi kernel source (rpi-6.2.y)
+        uses: actions/checkout@v4
+        with:
+          repository: raspberrypi/linux
+          ref: rpi-6.2.y
+          path: /tmp/linux
+          fetch-depth: 1
+      - name: Fix kernel version and clean up
+        working-directory: /tmp/linux
         run: |
-          curl -sL -o /tmp/linux.tar.gz \
-            "https://github.com/raspberrypi/linux/archive/refs/heads/rpi-6.2.y.tar.gz"
-          tar -xf /tmp/linux.tar.gz -C /tmp/
-          mv /tmp/linux-rpi-6.2.y /tmp/linux
-          rm -f /tmp/linux.tar.gz
-          echo "Source ready at /tmp/linux ($(du -sh /tmp/linux | cut -f1))"
-          head -5 /tmp/linux/Makefile
+          echo "Source ready at /tmp/linux ($(du -sh . | cut -f1))"
+          head -5 Makefile
           # Fix SUBLEVEL to match SOtM's 6.2.15 (rpi-6.2.y may be 6.2.x > 15)
-          sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 15/' /tmp/linux/Makefile
+          sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 15/' Makefile
           echo "After fix:"
-          head -5 /tmp/linux/Makefile
+          head -5 Makefile
           # No .git directory in tarball, no '+' suffix issue
           # Force ARM_MODULE_PLTS in .config 
           sed -i '/CONFIG_ARM_MODULE_PLTS/d' /tmp/linux/.config
