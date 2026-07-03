@@ -103,8 +103,12 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --set-val CONFIG_CMA_SIZE_MBYTES 256 2
 
 # Disable DYNAMIC_FTRACE: RPi kernel's ftrace module sorting crashes with
 # Fedora-compiled .ko (segfault in ftrace_cmp_ips + sort_r).
-# Fedora kernel has this but RPi kernel's arch ftrace is incompatible.
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_DYNAMIC_FTRACE 2>/dev/null || true
+
+# Disable SWAP entirely: Cubietruck dd image has stale swap cache entries
+# that flood dmesg (get_swap_device / _swap_info_get spam) even with valid
+# swap partition. Audio appliance doesn't need swap.
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_SWAP 2>/dev/null || true
 
 # Prevent make from reverting our manual config settings
 touch include/config/auto.conf 2>/dev/null || true
