@@ -98,6 +98,11 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_FORTIFY_SOURCE 2>/dev
 # Increase CMA from default 5MB to 256MB for PCIe DMA (USB VL805 fix)
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --set-val CONFIG_CMA_SIZE_MBYTES 256 2>/dev/null || true
 
+# Disable DYNAMIC_FTRACE: RPi kernel's ftrace module sorting crashes with
+# Fedora-compiled .ko (segfault in ftrace_cmp_ips + sort_r).
+# Fedora kernel has this but RPi kernel's arch ftrace is incompatible.
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_DYNAMIC_FTRACE 2>/dev/null || true
+
 # Prevent make from reverting our manual config settings
 touch include/config/auto.conf 2>/dev/null || true
 
