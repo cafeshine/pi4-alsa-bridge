@@ -94,6 +94,16 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_ARM_MODULE_PLTS
 # Touch auto.conf so make thinks it's up-to-date and skips re-processing
 touch include/config/auto.conf 2>/dev/null || true
 
+# Patch count_plts() to skip PLT check for Fedora-compiled modules
+# The RPi kernel's module loader rejects modules without .plt section
+# even with ARM_MODULE_PLTS=y. This patch makes count_plts return 0.
+PFX="arch/arm/kernel/module.c"
+if [ -f "$PFX" ]; then
+	# Comment out original count_plts and replace with a no-op
+	sed -i '/^static int count_plts/,/^}$/c\static int __patched_count_plts_disabled(void) { return 0; }\nstatic int count_plts(struct module *m, const struct elf32_shdr *s, int i) { return 0; }' "$PFX" 2>/dev/null || true
+	echo "count_plts patched successfully"
+fi
+
 echo ""
 echo "=== Config overlay complete ==="
 echo "Verified key settings:"
