@@ -59,6 +59,8 @@ jobs:
       - name: Apply RPi bcm2711_defconfig base
         working-directory: /tmp/linux
         run: |
+          # Build conf binary first, then generate config
+          make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} scripts_basic
           make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} bcm2711_defconfig
           echo "=== Base config key settings ==="
           grep -E '(CONFIG_PREEMPT|CONFIG_SMP|CONFIG_ARM_LPAE|CONFIG_LOCALVERSION|CONFIG_MMC_BCM)' .config | grep -v '^#'
