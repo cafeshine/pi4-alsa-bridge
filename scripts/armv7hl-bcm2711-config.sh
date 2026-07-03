@@ -94,14 +94,16 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_ARM_MODULE_PLTS
 # Touch auto.conf so make thinks it's up-to-date and skips re-processing
 touch include/config/auto.conf 2>/dev/null || true
 
-# Patch count_plts() to skip PLT check for Fedora-compiled modules
-# The RPi kernel's module loader rejects modules without .plt section
-# even with ARM_MODULE_PLTS=y. This patch makes count_plts return 0.
-PFX="arch/arm/kernel/module.c"
+# Patch module_frob_arch_sections() to NOT reject modules without .plt sections.
+# Fedora 36 GCC 12.2 doesn't generate PLT sections in .ko files, but the RPi
+# kernel's module loader rejects them with "module PLT section(s) missing".
+# Fix: change pr_err→pr_warn + return 0 instead of -ENOEXEC, so the module
+# loads without PLT support (relocations must be within 32-bit range).
+PFX="arch/arm/kernel/module-plts.c"
 if [ -f "$PFX" ]; then
-	# Comment out original count_plts and replace with a no-op
-	sed -i '/^static int count_plts/,/^}$/c\static int __patched_count_plts_disabled(void) { return 0; }\nstatic int count_plts(struct module *m, const struct elf32_shdr *s, int i) { return 0; }' "$PFX" 2>/dev/null || true
-	echo "count_plts patched successfully"
+	sed -i 's|pr_err("%s: module PLT section(s) missing|pr_warn("%s: module PLT section(s) missing - allowing|' "$PFX" 2>/dev/null || true
+	sed -i 's|return -ENOEXEC;|return 0; /* patched: allow modules without .plt */|' "$PFX" 2>/dev/null || true
+	echo "module-plts.c patched for Fedora .ko compatibility"
 fi
 
 echo ""
