@@ -44,22 +44,10 @@ jobs:
         run: |
           sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 15/' Makefile
           head -5 Makefile
-          # Force ARM_MODULE_PLTS in .config 
-          sed -i '/CONFIG_ARM_MODULE_PLTS/d' /tmp/linux/.config
-          echo "CONFIG_ARM_MODULE_PLTS=y" >> /tmp/linux/.config
-          # Patch count_plts() to return 0 (skip PLT check entirely)
-          # This function in arch/arm/kernel/module.c rejects modules
-          # without .plt section even when CONFIG_ARM_MODULE_PLTS=y
-          PFX=/tmp/linux/arch/arm/kernel/module.c
-          sed -i '/^static int count_plts/,/^}$/s/^/\/\/PLTDISABLED/' "$PFX" 2>/dev/null || true
-          echo 'static int count_plts(struct module *m, const struct elf32_shdr *s, int i){return 0;}' >> "$PFX"
-          echo "count_plts patched"
 
       - name: Apply RPi bcm2711_defconfig base
         working-directory: /tmp/linux
         run: |
-          # Build conf binary first, then generate config
-          make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} scripts_basic
           make ARCH=arm CROSS_COMPILE=${{ env.CROSS_COMPILE }} bcm2711_defconfig
           echo "=== Base config key settings ==="
           grep -E '(CONFIG_PREEMPT|CONFIG_SMP|CONFIG_ARM_LPAE|CONFIG_LOCALVERSION|CONFIG_MMC_BCM)' .config | grep -v '^#'
