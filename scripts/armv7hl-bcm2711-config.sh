@@ -110,20 +110,16 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_DYNAMIC_FTRACE 2>/dev
 # swap partition. Audio appliance doesn't need swap.
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_SWAP 2>/dev/null || true
 
+# Disable STRICT_MEMORY_RWX: Fedora kernel does not enforce strict RWX
+# separation. May affect mmap compatibility with alsa_bridge.ko.
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_STRICT_MEMORY_RWX 2>/dev/null || true
+
+# Disable DEBUG_PAGEALLOC: extra page table checks incompatible with
+# alsa_bridge.ko's remap_pfn_range usage.
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_DEBUG_PAGEALLOC 2>/dev/null || true
+
 # Prevent make from reverting our manual config settings
 touch include/config/auto.conf 2>/dev/null || true
-
-# Patch module_frob_arch_sections() to NOT reject modules without .plt sections.
-# Fedora 36 GCC 12.2 doesn't generate PLT sections in .ko files, but the RPi
-# kernel's module loader rejects them with "module PLT section(s) missing".
-# Fix: change pr_err→pr_warn + return 0 instead of -ENOEXEC, so the module
-# loads without PLT support (relocations must be within 32-bit range).
-PFX="arch/arm/kernel/module-plts.c"
-if [ -f "$PFX" ]; then
-	sed -i 's|pr_err("%s: module PLT section(s) missing|pr_warn("%s: module PLT section(s) missing - allowing|' "$PFX" 2>/dev/null || true
-	sed -i 's|return -ENOEXEC;|return 0; /* patched: allow modules without .plt */|' "$PFX" 2>/dev/null || true
-	echo "module-plts.c patched for Fedora .ko compatibility"
-fi
 
 echo ""
 echo "=== Config overlay complete ==="
