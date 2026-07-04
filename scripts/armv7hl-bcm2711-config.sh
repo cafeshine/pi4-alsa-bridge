@@ -118,6 +118,13 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_STRICT_MEMORY_RWX 2>/
 # alsa_bridge.ko's remap_pfn_range usage.
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_DEBUG_PAGEALLOC 2>/dev/null || true
 
+# Disable STACKPROTECTOR: Fedora kernel has this OFF (# CONFIG_STACKPROTECTOR is not set).
+# When enabled, stack_canary field shifts task_struct layout, causing boardCheck to
+# read NULL at offset 0x6b4 (current->cred check fails on RPi kernel).
+# Must match Fedora's task_struct layout for alsa_bridge.ko binary compatibility.
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_STACKPROTECTOR 2>/dev/null || true
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_STACKPROTECTOR_STRONG 2>/dev/null || true
+
 # Prevent make from reverting our manual config settings
 touch include/config/auto.conf 2>/dev/null || true
 
