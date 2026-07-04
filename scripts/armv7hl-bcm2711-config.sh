@@ -59,12 +59,15 @@ $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_MODULE_SIG_ALL
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_MODULE_SIG_SHA256
 $SCRIPTS_DIR/config --file "$CONFIG_FILE" --set-str CONFIG_MODULE_SIG_HASH "sha256"
 
-# Memory layout: keep LPAE enabled (bcm2711_defconfig default).
-# LPAE is REQUIRED for Pi 4B USB — VL805 XHCI 64-bit BAR needs the
-# extended PCIe address space that only LPAE provides.
-# VMSPLIT_3G and PAGE_OFFSET=0xC0000000 conflict with LPAE, so we
-# DO NOT set them here — let bcm2711_defconfig's LPAE layout stand.
-# Our module-plts.c patch handles any relocation range differences.
+# Memory layout: disable LPAE to match Fedora kernel's memory management.
+# Fedora kernel has CONFIG_ARM_LPAE=n. Enabling it changes page table
+# format (2-level → 3-level) and vm_area_struct behavior, which affects
+# the SOtM alsa_bridge.ko binary's internal futex/thread synchronization.
+# NOTE: LPAE=n will limit RAM visibility (~3GB accessible) and may break
+# USB (VL805 XHCI PCIe BAR allocation). But syncAlsa may work correctly.
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --disable CONFIG_ARM_LPAE 2>/dev/null || true
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --enable  CONFIG_VMSPLIT_3G 2>/dev/null || true
+$SCRIPTS_DIR/config --file "$CONFIG_FILE" --set-val CONFIG_PAGE_OFFSET 0xC0000000 2>/dev/null || true
 
 # === Step 2: Boot-critical drivers built-in (=y) ===
 # (Most are already =y in bcm2711_defconfig, but ensure)
