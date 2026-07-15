@@ -1,0 +1,82 @@
+name: Build alsa_bridge.ko — x86_64 XanMod RT (v3)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            gcc flex bison libelf-dev bc kmod dwarves \
+            libssl-dev libncurses-dev
+
+      - name: Clone XanMod RT kernel source
+        run: |
+          git clone --depth=1 -b 6.18-rt-xanmod1 \
+            https://gitlab.com/xanmod/linux.git /tmp/linux
+
+      - name: Configure kernel (x86_64 + RT)
+        working-directory: /tmp/linux
+        run: |
+          # Start with defconfig
+          make x86_64_defconfig
+
+          # Enable required options for alsa_bridge.ko
+          scripts/config --enable CONFIG_MODULES
+          scripts/config --enable CONFIG_MODULE_UNLOAD
+          scripts/config --enable CONFIG_SND_PCM
+          scripts/config --enable CONFIG_SND_TIMER
+          scripts/config --enable CONFIG_SND
+          scripts/config --enable CONFIG_SOUND
+          scripts/config --enable CONFIG_CRC16
+
+          # RT options (XanMod RT defaults)
+          scripts/config --enable CONFIG_PREEMPT_RT
+          scripts/config --disable CONFIG_PREEMPT_VOLUNTARY
+          scripts/config --disable CONFIG_PREEMPT
+
+          # x64v3 optimizations (AVX2, FMA, etc.)
+          scripts/config --enable CONFIG_X86_X32
+          scripts/config --enable CONFIG_ARCH_USE_BUG_ON
+
+          # Module signature (allow unsigned for out-of-tree)
+          scripts/config --disable CONFIG_MODULE_SIG_FORCE
+          scripts/config --enable CONFIG_MODULE_SIG_ALL
+
+          make olddefconfig
+
+          # Show final config values for debugging
+          grep -E "CONFIG_MODULES|CONFIG_SND_PCM|CONFIG_PREEMPT_RT|CONFIG_MODULE_SIG" .config || true
+
+      - name: Prepare kernel modules
+        working-directory: /tmp/linux
+        run: |
+          make -j$(nproc) modules_prepare
+
+      - name: Build alsa_bridge.ko
+        run: |
+          make -C /tmp/linux \
+            ARCH=x86_64 \
+            M=${{ github.workspace }}/DirettaAlsaHost \
+            KBUILD_MODPOST_WARN=1 \
+            modules
+
+      - name: Verify module
+        run: |
+          echo "=== Module info ==="
+          file DirettaAlsaHost/alsa_bridge.ko
+          modinfo DirettaAlsaHost/alsa_bridge.ko || true
+          echo "=== Size ==="
+          ls -lh DirettaAlsaHost/alsa_bridge.ko
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: alsa_bridge-x64v3-6.18-rt-xanmod
+          path: DirettaAlsaHost/alsa_bridge.ko
