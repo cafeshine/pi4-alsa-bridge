@@ -18,7 +18,7 @@ jobs:
 
       - name: Clone XanMod RT kernel source
         run: |
-          git clone --depth=1 -b 6.18-rt-xanmod1 \
+          git clone --depth=1 -b 6.18-rt \
             https://gitlab.com/xanmod/linux.git /tmp/linux
 
       - name: Configure kernel (x86_64 + RT)
