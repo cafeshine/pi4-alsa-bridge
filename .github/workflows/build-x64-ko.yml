@@ -13,7 +13,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            gcc flex bison libelf-dev bc kmod dwarves \
+            gcc clang lld llvm flex bison libelf-dev bc kmod dwarves \
             libssl-dev libncurses-dev
 
       - name: Clone XanMod RT kernel source
@@ -21,38 +21,14 @@ jobs:
           git clone --depth=1 -b 6.18-rt \
             https://gitlab.com/xanmod/linux.git /tmp/linux
 
-      - name: Configure kernel (x86_64 + RT)
+      - name: Use target host kernel config
         working-directory: /tmp/linux
         run: |
-          # Start with defconfig
-          make x86_64_defconfig
-
-          # Enable required options for alsa_bridge.ko
-          scripts/config --enable CONFIG_MODULES
-          scripts/config --enable CONFIG_MODULE_UNLOAD
-          scripts/config --enable CONFIG_SND_PCM
-          scripts/config --enable CONFIG_SND_TIMER
-          scripts/config --enable CONFIG_SND
-          scripts/config --enable CONFIG_SOUND
-          scripts/config --enable CONFIG_CRC16
-
-          # RT options (XanMod RT defaults)
-          scripts/config --enable CONFIG_PREEMPT_RT
-          scripts/config --disable CONFIG_PREEMPT_VOLUNTARY
-          scripts/config --disable CONFIG_PREEMPT
-
-          # x64v3 optimizations (AVX2, FMA, etc.)
-          scripts/config --enable CONFIG_X86_X32
-          scripts/config --enable CONFIG_ARCH_USE_BUG_ON
-
-          # Module signature (allow unsigned for out-of-tree)
-          scripts/config --disable CONFIG_MODULE_SIG_FORCE
-          scripts/config --enable CONFIG_MODULE_SIG_ALL
-
+          cp ${{ github.workspace }}/kernel-config-x64v3.config .config
           make olddefconfig
-
-          # Show final config values for debugging
-          grep -E "CONFIG_MODULES|CONFIG_SND_PCM|CONFIG_PREEMPT_RT|CONFIG_MODULE_SIG" .config || true
+          # Verify critical configs
+          echo "=== Key configs ==="
+          grep -E "^CONFIG_(MODULES|SND_PCM|PREEMPT_RT|MODULE_SIG|CC_IS_CLANG|LD_IS_LLD)=" .config || true
 
       - name: Prepare kernel modules
         working-directory: /tmp/linux
@@ -72,6 +48,8 @@ jobs:
           echo "=== Module info ==="
           file DirettaAlsaHost/alsa_bridge.ko
           modinfo DirettaAlsaHost/alsa_bridge.ko || true
+          echo "=== vermagic ==="
+          strings DirettaAlsaHost/alsa_bridge.ko | grep "^vermagic=" || true
           echo "=== Size ==="
           ls -lh DirettaAlsaHost/alsa_bridge.ko
 
