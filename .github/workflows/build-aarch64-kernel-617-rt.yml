@@ -52,18 +52,24 @@ jobs:
           ls -lh linux-6.17.12.tar.xz kernel-aarch64-fedora.config patch-6.17-redhat.patch 2>&1 || true
           ls -lh | head -40
 
-      - name: Extract kernel source and verify PREEMPT_RT
+      - name: Extract kernel source and apply SOtM/Fedora patches
         run: |
           mkdir -p /tmp/linux
           tar -xJf /tmp/srpm/linux-6.17.12.tar.xz -C /tmp/linux --strip-components=1
           cd /tmp/linux
           head -5 Makefile
-          if ! grep -q "PREEMPT_RT" kernel/Kconfig.preempt; then
-            echo "Source is not RT-patched; trying patch-6.17-redhat.patch"
-            patch -p1 --forward < /tmp/srpm/patch-6.17-redhat.patch
-          fi
+          echo "=== applying Fedora/SOtM patch stack unconditionally (spec order) ==="
+          patch -p1 --forward < /tmp/srpm/patch-6.17-redhat.patch
+          patch -p1 --forward < /tmp/srpm/SOtM-sun50i-h6-pine-h64-dts.patch
+          patch -p1 --forward < /tmp/srpm/SOtM-sun50i-h6-pine-h64-model-b-dts.patch
+          patch -p1 --forward < /tmp/srpm/SOtM-usb-native-dsd-patch-6.17.12-210.patch
+          patch -p1 --forward < /tmp/srpm/SOtM-itf-usb-dac-patch-6.17.12-210.patch
+          patch -p1 --forward < /tmp/srpm/SOtM-usb-high-period-buffer-6.17.12-210.patch
+          echo "=== patch stack verification ==="
+          grep -q 'const char \*rhelversion;' include/linux/module.h
+          test -f kernel/locking/spinlock_rt.c
           grep -q "PREEMPT_RT" kernel/Kconfig.preempt
-          echo "PREEMPT_RT source check: OK"
+          echo "rhelversion present; RT source present; PREEMPT_RT Kconfig present"
 
       - name: Build Pi4 config from 6.17 H6 base + 6.14 Pi4 fragment
         run: |
@@ -110,6 +116,8 @@ jobs:
           echo "module=$KO"
           echo "vermagic=$VM"
           test "$VM" = "${{ env.KREL }} SMP preempt_rt mod_unload aarch64"
+          readelf -p .modinfo "$KO" | grep -q 'rhelversion='
+          readelf -SW "$KO" | grep -q '\.gnu.linkonce.this_module .* 0004c0 '
 
       - name: Install modules and package
         run: |
