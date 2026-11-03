@@ -41,6 +41,20 @@ jobs:
           echo "=== patch header ==="
           head -50 patch-6.17-redhat.patch || true
 
+      - name: Inspect source tarball
+        run: |
+          mkdir -p /tmp/linux
+          cd /tmp/linux
+          echo "=== RT-related files in tarball ==="
+          tar -tJf /tmp/srpm/linux-6.17.12.tar.xz | grep -E 'spinlock_rt|local_lock_rt|include/linux/module\.h$' | head -20 || true
+          tar -xJf /tmp/srpm/linux-6.17.12.tar.xz --strip-components=1 linux-6.17.12/include/linux/module.h
+          cp include/linux/module.h "$GITHUB_WORKSPACE/srpm-inspect/module.h"
+          tar -xJf /tmp/srpm/linux-6.17.12.tar.xz --strip-components=1 linux-6.17.12/kernel/locking/spinlock_rt.c 2>/dev/null || true
+          echo "=== extracted ==="
+          ls -l include/linux/module.h kernel/locking/spinlock_rt.c 2>/dev/null || true
+          echo "=== module.h struct module conditional fields ==="
+          grep -nE 'CONFIG_(KALLSYMS|MODULE_UNLOAD|SMP|TRACEPOINTS|TREE_SRCU|BPF_EVENTS|DEBUG_INFO_BTF_MODULES|JUMP_LABEL|TRACING|EVENT_TRACING|DYNAMIC_FTRACE|KPROBES|HAVE_STATIC_CALL_INLINE|KUNIT|LIVEPATCH|PRINTK_INDEX|MODULES_TREE_LOOKUP|GENERIC_BUG|MODULE_SIG)' include/linux/module.h | head -80 || true
+
       - name: Collect artifacts
         run: |
           mkdir -p "$GITHUB_WORKSPACE/srpm-inspect"
