@@ -44,6 +44,7 @@ jobs:
       - name: Inspect source tarball
         run: |
           mkdir -p /tmp/linux
+          mkdir -p "$GITHUB_WORKSPACE/srpm-inspect"
           cd /tmp/linux
           echo "=== RT-related files in tarball ==="
           tar -tJf /tmp/srpm/linux-6.17.12.tar.xz | grep -E 'spinlock_rt|local_lock_rt|include/linux/module\.h$' | head -20 || true
