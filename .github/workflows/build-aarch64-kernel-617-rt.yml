@@ -57,6 +57,8 @@ jobs:
           mkdir -p /tmp/linux
           tar -xJf /tmp/srpm/linux-6.17.12.tar.xz -C /tmp/linux --strip-components=1
           cd /tmp/linux
+          cp /tmp/srpm/Makefile.rhelver .
+          test -f Makefile.rhelver
           head -5 Makefile
           echo "=== applying Fedora/SOtM patch stack unconditionally (spec order) ==="
           patch -p1 --forward < /tmp/srpm/patch-6.17-redhat.patch
