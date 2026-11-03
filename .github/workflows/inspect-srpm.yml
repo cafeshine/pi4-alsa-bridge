@@ -1,0 +1,56 @@
+name: Inspect SOtM kernel SRPM
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/inspect-srpm.yml'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rpm cpio
+
+      - name: Download SRPM
+        run: |
+          mkdir -p /tmp/srpm
+          cd /tmp/srpm
+          curl -L --retry 5 --retry-delay 10 --connect-timeout 30 \
+            -o kernel.src.rpm \
+            "https://sotm-audio.com/eunhasu/repo/releases/42/SRPMS/kernel-6.17.12-212.fc42.src.rpm"
+          ls -lh kernel.src.rpm
+
+      - name: Extract SRPM
+        run: |
+          cd /tmp/srpm
+          rpm2cpio kernel.src.rpm | cpio -idm --quiet
+          echo "=== key files ==="
+          ls -lh kernel.spec patch-6.17-redhat.patch SOtM-*.patch 2>&1 || true
+
+      - name: Show spec patch section
+        run: |
+          cd /tmp/srpm
+          echo "=== patch definitions ==="
+          grep -nE '^Patch[0-9]+:|patch-6\.17|SOtM|ApplyOptionalPatch|^%setup|^%patch' kernel.spec | head -100 || true
+          echo "=== patch header ==="
+          head -50 patch-6.17-redhat.patch || true
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/srpm-inspect"
+          cp /tmp/srpm/kernel.spec "$GITHUB_WORKSPACE/srpm-inspect/" 2>/dev/null || true
+          cp /tmp/srpm/patch-6.17-redhat.patch "$GITHUB_WORKSPACE/srpm-inspect/" 2>/dev/null || true
+          cp /tmp/srpm/SOtM-*.patch "$GITHUB_WORKSPACE/srpm-inspect/" 2>/dev/null || true
+          ls -lh "$GITHUB_WORKSPACE/srpm-inspect/"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: srpm-inspect
+          path: srpm-inspect/
+          if-no-files-found: warn
